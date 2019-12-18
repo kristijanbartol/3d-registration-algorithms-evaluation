@@ -1,11 +1,14 @@
 import open3d as o3d
 import numpy as np
 import copy
+import time
 
 from os.path import join
 
 DATA_DIR = '/home/kristijan/phd/datasets/Stanford3DDataset/'
 OBJECTS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
+
+VOXEL_SIZE = 0.05   # means 5cm for the dataset
 
 
 def draw_registration_result(source, target, transformation):
@@ -37,7 +40,8 @@ def preprocess_point_cloud(pcd, voxel_size):
 def prepare_dataset(voxel_size, data_root, object_name):
     print(":: Load two point clouds and disturb initial pose.")
     source = o3d.io.read_point_cloud(join(data_root, object_name + '.ply'))
-    target = o3d.io.read_point_cloud(join(data_root, object_name + '_copy.ply'))
+    target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
+    o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target)
     trans_init = np.asarray([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
                              [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
     source.transform(trans_init)
@@ -64,7 +68,19 @@ def execute_global_registration(source_down, target_down, source_fpfh,
     return result
 
 
-def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size):
+def execute_fast_global_registration(source_down, target_down, source_fpfh,
+                                     target_fpfh, voxel_size):
+    distance_threshold = voxel_size * 0.5
+    print(":: Apply fast global registration with distance threshold %.3f" \
+            % distance_threshold)
+    result = o3d.registration.registration_fast_based_on_feature_matching(
+        source_down, target_down, source_fpfh, target_fpfh,
+        o3d.registration.FastGlobalRegistrationOption(
+            maximum_correspondence_distance=distance_threshold))
+    return result
+
+
+def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, result_ransac):
     distance_threshold = voxel_size * 0.4
     print(":: Point-to-plane ICP registration is applied on original point")
     print("   clouds to refine the alignment. This time we use a strict")
@@ -75,22 +91,48 @@ def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size):
     return result
 
 
+def coarse_fine_matching(name):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = \
+            prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
+
+    result_ransac = execute_global_registration(source_down, target_down,
+                                                source_fpfh, target_fpfh,
+                                                VOXEL_SIZE)
+    print('Result RANSAC: {}'.format(result_ransac))
+    print(result_ransac.transformation)
+    draw_registration_result(source_down, target_down,
+                            result_ransac.transformation)
+
+    result_icp = refine_registration(source, target, source_fpfh, target_fpfh,
+                                    VOXEL_SIZE, result_ransac)
+    print('Result ICP: {}'.format(result_icp))
+    print(result_icp.transformation)
+    draw_registration_result(source, target, result_icp.transformation)
+
+
+def fast_global_matching(name):
+    source, target, source_down, target_down, source_fpfh, target_fpfh = \
+            prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
+
+    start = time.time()
+    result_ransac = execute_global_registration(source_down, target_down,
+                                                source_fpfh, target_fpfh,
+                                                VOXEL_SIZE)
+    print(result_ransac)
+    print("Global registration took %.3f sec.\n" % (time.time() - start))
+    draw_registration_result(source_down, target_down,
+                             result_ransac.transformation)
+
+    start = time.time()
+    result_fast = execute_fast_global_registration(source_down, target_down,
+                                                   source_fpfh, target_fpfh,
+                                                   VOXEL_SIZE)
+    print("Fast global registration took %.3f sec.\n" % (time.time() - start))
+    draw_registration_result(source, target,
+                             result_fast.transformation)
+
+
 if __name__ == "__main__":
-    voxel_size = 0.05  # means 5cm for the dataset
-    for name in OBJECTS:
-        source, target, source_down, target_down, source_fpfh, target_fpfh = \
-                prepare_dataset(voxel_size, DATA_DIR, name)
-
-        result_ransac = execute_global_registration(source_down, target_down,
-                                                    source_fpfh, target_fpfh,
-                                                    voxel_size)
-        print('Result RANSAC: {}'.format(result_ransac))
-        print(result_ransac.transformation)
-        draw_registration_result(source_down, target_down,
-                                result_ransac.transformation)
-
-        result_icp = refine_registration(source, target, source_fpfh, target_fpfh,
-                                        voxel_size)
-        print('Result ICP: {}'.format(result_icp))
-        print(result_icp.transformation)
-        draw_registration_result(source, target, result_icp.transformation)
+    for name in OBJECTS[:1]:
+        #coarse_fine_matching(name)
+        fast_global_matching(name)
