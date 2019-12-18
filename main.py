@@ -119,19 +119,18 @@ def coarse_fine_matching(name):
                                                 VOXEL_SIZE)
     print('Result RANSAC: {}'.format(result_ransac))
     print(result_ransac.transformation)
-    #draw_registration_result(source_down, target_down,
-    #                        result_ransac.transformation)
     draw_registration_result(source, target,
                             result_ransac.transformation)
+    save_results(source, target, result_ransac, DATA_DIR, name, 'fpfh-ransac')
 
     
-    result_icp = refine_registration(source_fpfh, target_fpfh, source_fpfh, target_fpfh,
+    result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
                                     VOXEL_SIZE, result_ransac)
     print('Result ICP: {}'.format(result_icp))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
     
-    save_results(source, target, result_ransac, DATA_DIR, name, 'coarse-fine')
+    save_results(source, target, result_icp, DATA_DIR, name, 'fpfh-ransac-icp')
 
 
 def fast_global_matching(name):
@@ -143,18 +142,22 @@ def fast_global_matching(name):
                                                    source_fpfh, target_fpfh,
                                                    VOXEL_SIZE)
     print("Fast global registration took %.3f sec.\n" % (time.time() - start))
+    print('Result FGR: {}'.format(result_fast))
+    print(result_fast.transformation)
     draw_registration_result(source, target,
                              result_fast.transformation)
+    save_results(source, target, result_fast, DATA_DIR, name, 'fgr')
 
-    result_icp = refine_registration(source, target, source_fpfh, target_fpfh,
-                                    VOXEL_SIZE, result_fast)
+    # NOTE: The correspondence distance tolerance is very high!
+    result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
+                                    VOXEL_SIZE * 10, result_fast)
     print('Result ICP: {}'.format(result_icp))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
-    save_results(source, target, result_icp, DATA_DIR, name, 'fgr')
+    save_results(source, target, result_icp, DATA_DIR, name, 'fgr-icp')
 
 
 if __name__ == "__main__":
     for name in OBJECTS[:1]:
-        coarse_fine_matching(name)
-        #fast_global_matching(name)
+        #coarse_fine_matching(name)
+        fast_global_matching(name)
