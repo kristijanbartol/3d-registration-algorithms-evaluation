@@ -2,6 +2,7 @@ import open3d as o3d
 import numpy as np
 import copy
 import time
+import json
 
 from os.path import join
 
@@ -18,6 +19,21 @@ def draw_registration_result(source, target, transformation):
     target_temp.paint_uniform_color([0, 0.651, 0.929])
     source_temp.transform(transformation)
     o3d.visualization.draw_geometries([source_temp, target_temp])
+
+
+def save_results(source, target, result, data_root, object_name, algo):
+    pc_path = join(data_root, '{}_{}.ply'.format(object_name, algo))
+    print('Saving resulting point cloud...')
+    o3d.io.write_point_cloud(pc_path, source)
+
+    metrics_path = join(data_root, '{}.json'.format(algo))
+    metrics = { 
+                'rmse': result.inlier_rmse, 
+                'fitness': result.fitness
+              }
+    print('Saving metrics...')
+    with open(metrics_path, 'w') as mp:
+        json.dump(metrics, mp)
 
 
 def preprocess_point_cloud(pcd, voxel_size):
@@ -39,12 +55,15 @@ def preprocess_point_cloud(pcd, voxel_size):
 
 def prepare_dataset(voxel_size, data_root, object_name):
     print(":: Load two point clouds and disturb initial pose.")
-    source = o3d.io.read_point_cloud(join(data_root, object_name + '.ply'))
-    target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
-    o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target)
+    source_path = join(data_root, object_name + '.ply')
+    target_path = join(data_root, object_name + '_copy.ply')
+    source = o3d.io.read_point_cloud(source_path)
+    #target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
+    #o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target)
+    target = o3d.io.read_point_cloud(target_path)
     trans_init = np.asarray([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
                              [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
-    source.transform(trans_init)
+    #source.transform(trans_init)
     draw_registration_result(source, target, np.identity(4))
 
     source_down, source_fpfh = preprocess_point_cloud(source, voxel_size)
@@ -100,28 +119,24 @@ def coarse_fine_matching(name):
                                                 VOXEL_SIZE)
     print('Result RANSAC: {}'.format(result_ransac))
     print(result_ransac.transformation)
-    draw_registration_result(source_down, target_down,
+    #draw_registration_result(source_down, target_down,
+    #                        result_ransac.transformation)
+    draw_registration_result(source, target,
                             result_ransac.transformation)
 
-    result_icp = refine_registration(source, target, source_fpfh, target_fpfh,
+    
+    result_icp = refine_registration(source_fpfh, target_fpfh, source_fpfh, target_fpfh,
                                     VOXEL_SIZE, result_ransac)
     print('Result ICP: {}'.format(result_icp))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
+    
+    save_results(source, target, result_ransac, DATA_DIR, name, 'coarse-fine')
 
 
 def fast_global_matching(name):
     source, target, source_down, target_down, source_fpfh, target_fpfh = \
             prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
-
-    start = time.time()
-    result_ransac = execute_global_registration(source_down, target_down,
-                                                source_fpfh, target_fpfh,
-                                                VOXEL_SIZE)
-    print(result_ransac)
-    print("Global registration took %.3f sec.\n" % (time.time() - start))
-    draw_registration_result(source_down, target_down,
-                             result_ransac.transformation)
 
     start = time.time()
     result_fast = execute_fast_global_registration(source_down, target_down,
@@ -131,8 +146,15 @@ def fast_global_matching(name):
     draw_registration_result(source, target,
                              result_fast.transformation)
 
+    result_icp = refine_registration(source, target, source_fpfh, target_fpfh,
+                                    VOXEL_SIZE, result_fast)
+    print('Result ICP: {}'.format(result_icp))
+    print(result_icp.transformation)
+    draw_registration_result(source, target, result_icp.transformation)
+    save_results(source, target, result_icp, DATA_DIR, name, 'fgr')
+
 
 if __name__ == "__main__":
     for name in OBJECTS[:1]:
-        #coarse_fine_matching(name)
-        fast_global_matching(name)
+        coarse_fine_matching(name)
+        #fast_global_matching(name)
