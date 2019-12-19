@@ -173,7 +173,15 @@ def goicp_to_o3d(points):
     for point in points:
         pc_list.append([point.x, point.y, point.z])
     o3d_pc = o3d.geometry.PointCloud()
-    return o3d.utility.Vector3dVector(np.array(pc_list))
+    o3d_pc.points = o3d.utility.Vector3dVector(np.array(pc_list))
+    return o3d_pc
+
+
+def get_transformation(rotation, translation):
+    return np.array([[rotation[0][0], rotation[0][1], rotation[0][2],
+        translation[0]], [rotation[1][0], rotation[1][1], rotation[1][2],
+        translation[1]], [rotation[2][0], rotation[2][1], rotation[2][2],
+        translation[2]], [0., 0., 0., 1.]])
 
 
 def go_icp(name):
@@ -189,6 +197,11 @@ def go_icp(name):
 
     source = goicp_to_o3d(src_points)
     target = goicp_to_o3d(tgt_points)
+    goicp_transformation = get_transformation(
+        goicp.optimalRotation(), 
+        goicp.optimalTranslation())
+    
+    draw_registration_result(source, target, goicp_transformation)
 
     print(goicp.optimalRotation())
     print(goicp.optimalTranslation())
