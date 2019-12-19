@@ -4,10 +4,11 @@ import copy
 import time
 import json
 
+from py_goicp import GoICP, POINT3D, ROTNODE, TRANSNODE
 from os.path import join
 
 DATA_DIR = '/home/kristijan/phd/datasets/Stanford3DDataset/'
-OBJECTS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
+ITEMS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
 
 VOXEL_SIZE = 0.05   # means 5cm for the dataset
 
@@ -24,7 +25,7 @@ def draw_registration_result(source, target, transformation):
 def save_results(source, target, result, data_root, object_name, algo):
     pc_path = join(data_root, '{}_{}.ply'.format(object_name, algo))
     print('Saving resulting point cloud...')
-    o3d.io.write_point_cloud(pc_path, source)
+    o3d.io.write_point_cloud(pc_path, source, write_ascii=True)
 
     metrics_path = join(data_root, '{}.json'.format(algo))
     metrics = { 
@@ -55,11 +56,11 @@ def preprocess_point_cloud(pcd, voxel_size):
 
 def prepare_dataset(voxel_size, data_root, object_name):
     print(":: Load two point clouds and disturb initial pose.")
-    source_path = join(data_root, object_name + '.ply')
-    target_path = join(data_root, object_name + '_copy.ply')
+    source_path = join(data_root, '{}.{}'.format(object_name, 'ply'))
+    target_path = join(data_root, object_name + '{}_copy.{}'.format(object_name, 'ply'))
     source = o3d.io.read_point_cloud(source_path)
     #target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
-    #o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target)
+    #o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target, write_ascii=True)
     target = o3d.io.read_point_cloud(target_path)
     trans_init = np.asarray([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
                              [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
@@ -157,7 +158,40 @@ def fast_global_matching(name):
     save_results(source, target, result_icp, DATA_DIR, name, 'fgr-icp')
 
 
+def loadPointCloud(filename):
+    pcloud = np.loadtxt(filename, skiprows=1)
+    plist = pcloud.tolist()
+    p3dlist = []
+    for x, y, z in plist:
+        pt = POINT3D(x, y, z)
+        p3dlist.append(pt)
+    return pcloud.shape[0], p3dlist
+
+
+def go_icp(name):
+    goicp = GoICP()
+    src_path = join(DATA_DIR, '{}.{}'.format(name, 'txt'))
+    tgt_path = join(DATA_DIR, '{}_copy.{}'.format(name, 'txt'))
+    Nm, a_points = loadPointCloud(src_path)
+    Nd, b_points = loadPointCloud(tgt_path)
+    goicp.loadModelAndData(Nm, a_points, Nd, b_points)
+    goicp.setDTSizeAndFactor(300, 2.0)
+    goicp.BuildDT()
+    goicp.Register()
+
+    print(type(Nd))
+    print(type(goicp.optimalRotation()))
+
+    print(a_points[0].x)
+    #Nm = Nm.rotate(np.array(goicp.optimalRotation())).translate(
+    #    np.array(goicp.optimalTranslation()))
+
+    print(goicp.optimalRotation())
+    print(goicp.optimalTranslation())
+
+
 if __name__ == "__main__":
-    for name in OBJECTS[:1]:
+    for name in ITEMS[:1]:
         #coarse_fine_matching(name)
-        fast_global_matching(name)
+        #fast_global_matching(name)
+        go_icp(name)
