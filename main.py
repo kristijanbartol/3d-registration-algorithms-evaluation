@@ -13,12 +13,13 @@ ITEMS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
 VOXEL_SIZE = 0.05   # means 5cm for the dataset
 
 
-def draw_registration_result(source, target, transformation):
+def draw_registration_result(source, target, transformation=None):
     source_temp = copy.deepcopy(source)
     target_temp = copy.deepcopy(target)
     source_temp.paint_uniform_color([1, 0.706, 0])
     target_temp.paint_uniform_color([0, 0.651, 0.929])
-    source_temp.transform(transformation)
+    if transformation is not None:
+        source_temp.transform(transformation)
     o3d.visualization.draw_geometries([source_temp, target_temp])
 
 
@@ -197,11 +198,12 @@ def go_icp(name):
 
     source = goicp_to_o3d(src_points)
     target = goicp_to_o3d(tgt_points)
+    draw_registration_result(source, target)
+
     goicp_transformation = get_transformation(
         goicp.optimalRotation(), 
         goicp.optimalTranslation())
-    
-    draw_registration_result(source, target, goicp_transformation)
+    draw_registration_result(target, source, goicp_transformation)
 
     print(goicp.optimalRotation())
     print(goicp.optimalTranslation())
