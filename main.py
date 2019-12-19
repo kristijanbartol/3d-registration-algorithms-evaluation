@@ -168,23 +168,27 @@ def loadPointCloud(filename):
     return pcloud.shape[0], p3dlist
 
 
+def goicp_to_o3d(points):
+    pc_list = []
+    for point in points:
+        pc_list.append([point.x, point.y, point.z])
+    o3d_pc = o3d.geometry.PointCloud()
+    return o3d.utility.Vector3dVector(np.array(pc_list))
+
+
 def go_icp(name):
     goicp = GoICP()
     src_path = join(DATA_DIR, '{}.{}'.format(name, 'txt'))
     tgt_path = join(DATA_DIR, '{}_copy.{}'.format(name, 'txt'))
-    Nm, a_points = loadPointCloud(src_path)
-    Nd, b_points = loadPointCloud(tgt_path)
-    goicp.loadModelAndData(Nm, a_points, Nd, b_points)
+    N_src, src_points = loadPointCloud(src_path)
+    N_tgt, tgt_points = loadPointCloud(tgt_path)
+    goicp.loadModelAndData(N_src, src_points, N_tgt, tgt_points)
     goicp.setDTSizeAndFactor(300, 2.0)
     goicp.BuildDT()
     goicp.Register()
 
-    print(type(Nd))
-    print(type(goicp.optimalRotation()))
-
-    print(a_points[0].x)
-    #Nm = Nm.rotate(np.array(goicp.optimalRotation())).translate(
-    #    np.array(goicp.optimalTranslation()))
+    source = goicp_to_o3d(src_points)
+    target = goicp_to_o3d(tgt_points)
 
     print(goicp.optimalRotation())
     print(goicp.optimalTranslation())
