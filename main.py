@@ -58,7 +58,7 @@ def preprocess_point_cloud(pcd, voxel_size):
 def prepare_dataset(voxel_size, data_root, object_name):
     print(":: Load two point clouds and disturb initial pose.")
     source_path = join(data_root, '{}.{}'.format(object_name, 'ply'))
-    target_path = join(data_root, object_name + '{}_copy.{}'.format(object_name, 'ply'))
+    target_path = join(data_root, '{}_copy.{}'.format(object_name, 'ply'))
     source = o3d.io.read_point_cloud(source_path)
     #target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
     #o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target, write_ascii=True)
@@ -212,5 +212,5 @@ def go_icp(name):
 if __name__ == "__main__":
     for name in ITEMS[:1]:
         #coarse_fine_matching(name)
-        #fast_global_matching(name)
-        go_icp(name)
+        fast_global_matching(name)
+        #go_icp(name)
