@@ -39,19 +39,25 @@ def save_results(source, target, result, data_root, object_name, algo):
 
 
 def preprocess_point_cloud(pcd, voxel_size):
-    print(":: Downsample with a voxel size %.3f." % voxel_size)
+    start_time = time.time()
     pcd_down = pcd.voxel_down_sample(voxel_size)
+    print(":: Downsample with a voxel size {:.3f} ({:.2f}s).".format(
+        voxel_size, time.time() - start_time))
 
     radius_normal = voxel_size * 2
-    print(":: Estimate normal with search radius %.3f." % radius_normal)
+    start_time = time.time()
     pcd_down.estimate_normals(
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+    print(":: Estimate normal with search radius {:.3f} ({:.2f}s).".format(
+        radius_normal, time.time() - start_time))
 
     radius_feature = voxel_size * 5
-    print(":: Compute FPFH feature with search radius %.3f." % radius_feature)
+    start_time = time.time()
     pcd_fpfh = o3d.registration.compute_fpfh_feature(
         pcd_down,
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+    print(":: Compute FPFH feature with search radius {:.3f} ({:.2f}s).".format(
+        radius_feature, time.time() - start_time))
     return pcd_down, pcd_fpfh
 
 
@@ -118,19 +124,20 @@ def coarse_fine_matching(name, icp_type):
     source, target, source_down, target_down, source_fpfh, target_fpfh = \
             prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
 
+    start_time = time.time()
     result_ransac = execute_global_registration(source_down, target_down,
                                                 source_fpfh, target_fpfh,
                                                 VOXEL_SIZE)
-    print('Result RANSAC: {}'.format(result_ransac))
+    print('Result RANSAC: {} ({:.2f}s)'.format(result_ransac, time.time() - start_time))
     print(result_ransac.transformation)
     draw_registration_result(source, target,
                             result_ransac.transformation)
     save_results(source, target, result_ransac, DATA_DIR, name, 'fpfh-ransac')
 
-    
+    start_time = time.time()
     result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
                                     VOXEL_SIZE, result_ransac, icp_type)
-    print('Result ICP: {}'.format(result_icp))
+    print('Result ICP: {} ({:.2f}s)'.format(result_icp, time.time() - start_time))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
     
@@ -141,21 +148,19 @@ def fast_global_matching(name, icp_type):
     source, target, source_down, target_down, source_fpfh, target_fpfh = \
             prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
 
-    start = time.time()
+    start_time = time.time()
     result_fast = execute_fast_global_registration(source_down, target_down,
                                                    source_fpfh, target_fpfh,
                                                    VOXEL_SIZE)
-    print("Fast global registration took %.3f sec.\n" % (time.time() - start))
-    print('Result FGR: {}'.format(result_fast))
-    print(result_fast.transformation)
+    print('Result FGR: {} ({:.2f}s)'.format(result_fast, time.time() - start_time))
     draw_registration_result(source, target,
                              result_fast.transformation)
     save_results(source, target, result_fast, DATA_DIR, name, 'fgr')
 
+    start_time = time.time()
     result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
                                     VOXEL_SIZE, result_fast, icp_type)
-    print('Result ICP: {}'.format(result_icp))
-    print(result_icp.transformation)
+    print('Result ICP: {} ({:.2f}s)'.format(result_icp, time.time() - start_time))
     draw_registration_result(source, target, result_icp.transformation)
     save_results(source, target, result_icp, DATA_DIR, name, 'fgr-{}-icp'.format(icp_type))
 
@@ -194,8 +199,11 @@ def go_icp(name):
     N_tgt, tgt_points = loadPointCloud(tgt_path)
     goicp.loadModelAndData(N_src, src_points, N_tgt, tgt_points)
     goicp.setDTSizeAndFactor(300, 2.0)
+
+    start_time = time.time()
     goicp.BuildDT()
     goicp.Register()
+    print('Go-ICP time: {:.2f}'.format(time.time() - start_time))
 
     source = goicp_to_o3d(src_points)
     target = goicp_to_o3d(tgt_points)
