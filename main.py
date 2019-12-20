@@ -8,7 +8,7 @@ from py_goicp import GoICP, POINT3D, ROTNODE, TRANSNODE
 from os.path import join
 
 DATA_DIR = '/home/kristijan/phd/datasets/Stanford3DDataset/'
-ITEMS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
+ITEMS = ['bunny', 'horse', 'hand', 'dragon', 'happy']#, 'blade']
 
 VOXEL_SIZE = 0.05   # means 5cm for the dataset
 
@@ -24,11 +24,11 @@ def draw_registration_result(source, target, transformation=None):
 
 
 def save_results(source, target, result, data_root, object_name, algo):
-    pc_path = join(data_root, '{}_{}.ply'.format(object_name, algo))
-    print('Saving resulting point cloud...')
-    o3d.io.write_point_cloud(pc_path, source, write_ascii=True)
+    #pc_path = join(data_root, '{}_{}.ply'.format(object_name, algo))
+    #print('Saving resulting point cloud...')
+    #o3d.io.write_point_cloud(pc_path, source, write_ascii=True)
 
-    metrics_path = join(data_root, '{}.json'.format(algo))
+    metrics_path = join(data_root, '{}_{}.json'.format(object_name, algo))
     metrics = { 
                 'rmse': result.inlier_rmse, 
                 'fitness': result.fitness
@@ -58,10 +58,10 @@ def preprocess_point_cloud(pcd, voxel_size):
 def prepare_dataset(voxel_size, data_root, object_name):
     print(":: Load two point clouds and disturb initial pose.")
     source_path = join(data_root, '{}.{}'.format(object_name, 'ply'))
-    target_path = join(data_root, '{}_copy.{}'.format(object_name, 'ply'))
+    target_path = join(data_root, '{}_trans.{}'.format(object_name, 'ply'))
     source = o3d.io.read_point_cloud(source_path)
     #target = source.translate(np.array([0.1, 0.1, 0.1])).rotate(np.array([0.5, 0.5, 0.5]))
-    #o3d.io.write_point_cloud(join(data_root, object_name + '_copy.ply'), target, write_ascii=True)
+    #o3d.io.write_point_cloud(target_path, target, write_ascii=True)
     target = o3d.io.read_point_cloud(target_path)
     trans_init = np.asarray([[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
                              [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
@@ -101,18 +101,20 @@ def execute_fast_global_registration(source_down, target_down, source_fpfh,
     return result
 
 
-def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, result_ransac):
+def refine_registration(source, target, source_fpfh, target_fpfh, voxel_size, result_ransac, icp_type):
     distance_threshold = voxel_size * 0.4
     print(":: Point-to-plane ICP registration is applied on original point")
     print("   clouds to refine the alignment. This time we use a strict")
     print("   distance threshold %.3f." % distance_threshold)
     result = o3d.registration.registration_icp(
         source, target, distance_threshold, result_ransac.transformation,
-        o3d.registration.TransformationEstimationPointToPlane())
+        o3d.registration.TransformationEstimationPointToPoint() if icp_type == 'point' \
+            else o3d.registration.TransformationEstimationPointToPlane())#,
+        #criteria=o3d.registration.ICPConvergenceCriteria(relative_fitness=0.1))
     return result
 
 
-def coarse_fine_matching(name):
+def coarse_fine_matching(name, icp_type):
     source, target, source_down, target_down, source_fpfh, target_fpfh = \
             prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
 
@@ -127,15 +129,15 @@ def coarse_fine_matching(name):
 
     
     result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
-                                    VOXEL_SIZE, result_ransac)
+                                    VOXEL_SIZE, result_ransac, icp_type)
     print('Result ICP: {}'.format(result_icp))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
     
-    save_results(source, target, result_icp, DATA_DIR, name, 'fpfh-ransac-icp')
+    save_results(source, target, result_icp, DATA_DIR, name, 'fpfh-ransac-{}-icp'.format(icp_type))
 
 
-def fast_global_matching(name):
+def fast_global_matching(name, icp_type):
     source, target, source_down, target_down, source_fpfh, target_fpfh = \
             prepare_dataset(VOXEL_SIZE, DATA_DIR, name)
 
@@ -150,13 +152,12 @@ def fast_global_matching(name):
                              result_fast.transformation)
     save_results(source, target, result_fast, DATA_DIR, name, 'fgr')
 
-    # NOTE: The correspondence distance tolerance is very high!
     result_icp = refine_registration(source_down, target_down, source_fpfh, target_fpfh,
-                                    VOXEL_SIZE * 10, result_fast)
+                                    VOXEL_SIZE, result_fast, icp_type)
     print('Result ICP: {}'.format(result_icp))
     print(result_icp.transformation)
     draw_registration_result(source, target, result_icp.transformation)
-    save_results(source, target, result_icp, DATA_DIR, name, 'fgr-icp')
+    save_results(source, target, result_icp, DATA_DIR, name, 'fgr-{}-icp'.format(icp_type))
 
 
 def loadPointCloud(filename):
@@ -188,7 +189,7 @@ def get_transformation(rotation, translation):
 def go_icp(name):
     goicp = GoICP()
     src_path = join(DATA_DIR, '{}.{}'.format(name, 'txt'))
-    tgt_path = join(DATA_DIR, '{}_copy.{}'.format(name, 'txt'))
+    tgt_path = join(DATA_DIR, '{}_trans.{}'.format(name, 'txt'))
     N_src, src_points = loadPointCloud(src_path)
     N_tgt, tgt_points = loadPointCloud(tgt_path)
     goicp.loadModelAndData(N_src, src_points, N_tgt, tgt_points)
@@ -205,12 +206,11 @@ def go_icp(name):
         goicp.optimalTranslation())
     draw_registration_result(target, source, goicp_transformation)
 
-    print(goicp.optimalRotation())
-    print(goicp.optimalTranslation())
+    #save_results(source, target, result_icp, DATA_DIR, name, 'fgr-icp')
 
 
 if __name__ == "__main__":
-    for name in ITEMS[:1]:
-        #coarse_fine_matching(name)
-        fast_global_matching(name)
+    for name in ITEMS:
+        coarse_fine_matching(name, 'point')
+        #fast_global_matching(name, 'plane')
         #go_icp(name)

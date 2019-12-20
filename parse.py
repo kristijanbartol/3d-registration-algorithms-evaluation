@@ -1,14 +1,14 @@
 from os.path import join
 
 DATA_DIR = '/home/kristijan/phd/datasets/Stanford3DDataset/'
-ITEMS = ['bunny', 'blade', 'dragon', 'hand', 'happy', 'horse']
+ITEMS = ['bunny', 'horse', 'hand', 'dragon', 'happy']#, 'blade']
 
 
 if __name__ == '__main__':
-    for item in ITEMS[:2]:
+    for item in ITEMS:
         ply_base = join(DATA_DIR, item)
         txt_base = join(DATA_DIR, item)
-        for suffix in ['.', '_copy.']:
+        for suffix in ['.', '_trans.']:
             flag = False
             with open(ply_base + suffix + 'ply') as rf:
                 with open(txt_base + suffix + 'txt', 'w') as wf:
