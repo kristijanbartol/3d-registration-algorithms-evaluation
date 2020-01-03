@@ -26,4 +26,3 @@ if __name__ == '__main__':
                             continue
                         coords = line.rstrip().split(' ')[:3]
                         wf.write(' '.join(coords) + '\n')
-
