@@ -2,3 +2,9 @@ __pycache__/
 checkpoints/
 data/
 pretrained/
+
+.venv/
+.vscode/
+
+go-icp_cython
+Go-ICP/
