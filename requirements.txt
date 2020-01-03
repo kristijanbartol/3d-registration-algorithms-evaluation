@@ -1,0 +1,6 @@
+scipy>=1.2
+numpy
+h5py
+tqdm
+tensorboardX
+open3d
