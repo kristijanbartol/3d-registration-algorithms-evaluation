@@ -216,7 +216,3 @@ if __name__ == "__main__":
 
     with open(join(DATA_DIR, 'results.json'), 'w') as fr:
         json.dump(result_dict, fr)
-<<<<<<< HEAD
-=======
-
->>>>>>> 97b6e2afaf8154228d41fdbe8fd695faf14a4233
